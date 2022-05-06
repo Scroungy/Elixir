@@ -51,7 +51,10 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE prevInstance, LPWSTR cmdLine
     windowManager.transmitter = &channel;
     u32 settingsIndex = WM::register_window_settings(windowManager, WM::CreateWindowInfo{.windowName = L"Elixir", .vsync = true});
     WM::create_window(windowManager, settingsIndex, instance);
+    WM::create_window(windowManager, settingsIndex, instance);
     HANDLE renderThread = CreateThread(0, 0, render_thread, &channel, 0, 0);
+    WM::create_window(windowManager, settingsIndex, instance);
+    WM::create_window(windowManager, settingsIndex, instance);
     WM::update(windowManager);
     WaitForSingleObject(renderThread, UINT_MAX);
     return 0;
