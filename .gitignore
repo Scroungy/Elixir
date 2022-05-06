@@ -1,0 +1,17 @@
+/Source/window_manager.obj
+/Source/volk.obj
+/Source/vc140.pdb
+/Source/ElixirBare.obj
+/Source/channel.obj
+/Source/render_manager.obj
+/CCRT/vc140.pdb
+/CCRT/customCRT_float.obj
+/CCRT/customCRT_heap.obj
+/CCRT/Source/vc140.pdb
+/CCRT/Source/customCRT_heap.obj
+/CCRT/Source/customCRT_float.obj
+/Build/Debug/Elixir.pdb
+CCRT/Build/Release/ccrt.lib
+Libs/ccrt.lib
+Libs/ccrtd.lib
+CCRT/Build/Debug/ccrtd.lib
