@@ -1,0 +1,87 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+        "label": "build debug",
+        "type": "shell",
+        "command": "../Scripts/buildDebug.bat",
+        "options": {"cwd": "${workspaceFolder}/Source"},
+        "group": "build",
+        "presentation": {
+            "echo": true,
+            "reveal": "always",
+            "focus": false,
+            "panel": "shared",
+            "showReuseMessage": true,
+            "clear": true
+        }
+        },{
+            "label": "build release",
+            "type": "shell",
+            "command": "../Scripts/buildRelease.bat",
+            "options": {
+                "cwd": "${workspaceFolder}/Source"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            }
+        },
+        {
+            "label": "build ccrt debug",
+            "type": "shell",
+            "command": "./buildDebug.bat",
+            "options": {
+                "cwd": "${workspaceFolder}/CCRT/Scripts"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            }
+        },
+        {
+            "label": "build ccrt release",
+            "type": "shell",
+            "command": "./buildRelease.bat",
+            "options": {
+                "cwd": "${workspaceFolder}/CCRT/Scripts"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            }
+        },
+        {
+            "label": "grabLibs",
+            "type": "shell",
+            "command": "../Scripts/grabLibs.bat",
+            "options": {
+                "cwd": "${workspaceFolder}/Source"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            }
+        }
+    ]
+}

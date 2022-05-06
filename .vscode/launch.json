@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Windows) Launch RELEASE",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "Elixir.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/Build/Release",
+            "environment": [],
+            "console": "internalConsole"
+        },
+        {
+            "name": "(Windows) Launch DEBUG",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "Elixir.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/Build/Debug",
+            "environment": [],
+            "console": "internalConsole"
+        }
+    ]
+}
