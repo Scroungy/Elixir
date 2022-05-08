@@ -214,20 +214,18 @@ namespace RM
         {
             return;
         }
+        // NOTE each window should have its own current frame instead, then you can handle acquire calls to the same index
         u32 currentFrame = data.presentData.currentFrame;
         for (u32 i = 0; i < data.windowData.emptyWindowIndex; i++)
         {
             RenderData &currentWindow = data.windowData.windows[i];
-            VkResult acquireRes = vkAcquireNextImageKHR(data.device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentFrame], 0, &currentWindow.swapchainImageIndices[currentFrame]);
-            if (currentFrame == 0)
+            VkResult acquireRes = vkAcquireNextImageKHR(data.device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentWindow.currentFrame], 0, &currentWindow.swapchainImageIndices[currentWindow.currentFrame]);
+            if (acquireRes == VK_SUBOPTIMAL_KHR || acquireRes == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                if (acquireRes == VK_SUBOPTIMAL_KHR || acquireRes == VK_ERROR_OUT_OF_DATE_KHR)
-                {
-                    RECT r{};
-                    GetClientRect(currentWindow.windowHandle, &r);
-                    resize(data, {.width = (u32)(r.right - r.left), .height = (u32)(r.bottom - r.top), .windowIndex = i});
-                    acquireRes = vkAcquireNextImageKHR(data.device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentFrame], 0, &currentWindow.swapchainImageIndices[currentFrame]);
-                }
+                RECT r{};
+                GetClientRect(currentWindow.windowHandle, &r);
+                resize(data, {.width = (u32)(r.right - r.left), .height = (u32)(r.bottom - r.top), .windowIndex = i});
+                acquireRes = vkAcquireNextImageKHR(data.device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentWindow.currentFrame], 0, &currentWindow.swapchainImageIndices[currentWindow.currentFrame]);
             }
             if (acquireRes == VK_SUCCESS || acquireRes == VK_SUBOPTIMAL_KHR)
             {
@@ -261,10 +259,10 @@ namespace RM
             present.scissor[currentWindowIndex].offset = currentWindow.area.offset;
             present.scissor[currentWindowIndex].extent = currentWindow.area.extent;
             present.renderInfo[currentWindowIndex].renderArea = currentWindow.area;
-            present.renderAttachmentInfo[currentWindowIndex].imageView = currentWindow.swapchainImageViews[currentFrame];
-            present.beginImageBarrier[currentWindowIndex].image = currentWindow.swapchainImages[currentFrame];
-            present.endImageBarrier[currentWindowIndex].image = currentWindow.swapchainImages[currentFrame];
-            VkCommandBuffer &activeCommandBuffer = currentWindow.commandBuffers[currentFrame];
+            present.renderAttachmentInfo[currentWindowIndex].imageView = currentWindow.swapchainImageViews[currentWindow.currentFrame];
+            present.beginImageBarrier[currentWindowIndex].image = currentWindow.swapchainImages[currentWindow.currentFrame];
+            present.endImageBarrier[currentWindowIndex].image = currentWindow.swapchainImages[currentWindow.currentFrame];
+            VkCommandBuffer &activeCommandBuffer = currentWindow.commandBuffers[currentWindow.currentFrame];
             vkResetCommandBuffer(activeCommandBuffer, 0);
             vkBeginCommandBuffer(activeCommandBuffer, &present.commandBufferBeginInfo[currentWindowIndex]);
             vkCmdSetViewport(activeCommandBuffer, 0, 1, &present.viewport[currentWindowIndex]);
@@ -287,10 +285,10 @@ namespace RM
             u32 currentFrame = data.presentData.currentFrame;
             PresentDataSOA &soa = data.presentData.soa[currentFrame];
             soa.swapchainsDyn[i] = currentWindow.swapchain;
-            soa.swapchainImageIndicesDyn[i] = currentWindow.swapchainImageIndices[currentFrame];
-            soa.acquireNextImageSemaphoresDyn[i] = currentWindow.acquireNextImageSemaphores[currentFrame];
-            soa.renderSemaphoresDyn[i] = currentWindow.renderSemaphores[currentFrame];
-            soa.commandBuffersDyn[i] = currentWindow.commandBuffers[currentFrame];
+            soa.swapchainImageIndicesDyn[i] = currentWindow.swapchainImageIndices[currentWindow.currentFrame];
+            soa.acquireNextImageSemaphoresDyn[i] = currentWindow.acquireNextImageSemaphores[currentWindow.currentFrame];
+            soa.renderSemaphoresDyn[i] = currentWindow.renderSemaphores[currentWindow.currentFrame];
+            soa.commandBuffersDyn[i] = currentWindow.commandBuffers[currentWindow.currentFrame];
         }
     }
 
@@ -317,6 +315,10 @@ namespace RM
         //     }
         // }
         data.presentData.currentFrame = (data.presentData.currentFrame + 1) % SWAPCHAIN_IMAGE_COUNT;
+        for (u32 i = 0; i < data.windowData.emptyWindowIndex; i++)
+        {
+            data.windowData.windows[i].currentFrame = (data.windowData.windows[i].currentFrame + 1) % SWAPCHAIN_IMAGE_COUNT;
+        }
         data.presentData.currentRenderTick += 1;
     }
 
@@ -879,6 +881,7 @@ namespace RM
         }
         flush_deletion_queue(data, updatedWindow);
         updatedWindow.emptyDeletionQueueIndex = (updatedWindow.emptyDeletionQueueIndex + 1) % (SWAPCHAIN_IMAGE_COUNT * 2);
+        updatedWindow.currentFrame = 0;
     }
 
     void flush_deletion_queue(RenderManager &data, RenderData &window)

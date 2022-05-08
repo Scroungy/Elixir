@@ -46,6 +46,7 @@ namespace RM
 	struct RenderData
 	{
 		u32 emptyDeletionQueueIndex = 0;
+		u32 currentFrame = 0;
 		HWND windowHandle = 0;
 		VkRect2D area{};
 		VkSurfaceKHR surface{};

@@ -7,29 +7,25 @@ DWORD WINAPI render_thread(LPVOID lParam)
     RM::initialize(renderManager);
     while (true)
     {
-        if (renderManager.presentData.currentFrame == 0)
+        CH::Message msg = CH::recv(*receiver);
+        switch (msg.type)
         {
-
-            CH::Message msg = CH::recv(*receiver);
-            switch (msg.type)
-            {
-            case CH::CreateWindowMessage:
-            {
-                RM::create_window(renderManager, msg.content.create);
-                // RM::render(renderManager); // Must render each time we create a window or validation layers complain
-            }
-            break;
-            case CH::UpdateWindowMessage:
-            {
-                RM::resize(renderManager, msg.content.update);
-            }
-            break;
-            case CH::DestroyWindowMessage:
-            {
-                RM::destroy_window(renderManager, msg.content.destroy);
-            }
-            break;
-            }
+        case CH::CreateWindowMessage:
+        {
+            RM::create_window(renderManager, msg.content.create);
+            // RM::render(renderManager); // Must render each time we create a window or validation layers complain
+        }
+        break;
+        case CH::UpdateWindowMessage:
+        {
+            RM::resize(renderManager, msg.content.update);
+        }
+        break;
+        case CH::DestroyWindowMessage:
+        {
+            RM::destroy_window(renderManager, msg.content.destroy);
+        }
+        break;
         }
         if (!RM::is_empty(renderManager))
         {
@@ -49,7 +45,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE prevInstance, LPWSTR cmdLine
     WM::WindowManager windowManager = WM::WindowManager{};
     CH::Channel channel = CH::Channel{};
     windowManager.transmitter = &channel;
-    u32 settingsIndex = WM::register_window_settings(windowManager, WM::CreateWindowInfo{.windowName = L"Elixir", .vsync = true});
+    u32 settingsIndex = WM::register_window_settings(windowManager, WM::CreateWindowInfo{.windowName = L"Elixir", .vsync = false});
     WM::create_window(windowManager, settingsIndex, instance);
     WM::create_window(windowManager, settingsIndex, instance);
     HANDLE renderThread = CreateThread(0, 0, render_thread, &channel, 0, 0);
