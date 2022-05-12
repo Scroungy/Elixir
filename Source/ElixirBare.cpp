@@ -2,9 +2,9 @@
 
 DWORD WINAPI render_thread(LPVOID lParam)
 {
-    RM::RenderManager renderManager = RM::RenderManager{};
+    VMNG::VObject vulkanManager = VMNG::VObject{};
     CH::Channel *receiver = (CH::Channel *)lParam;
-    RM::initialize(renderManager);
+    VMNG::initialize(vulkanManager);
     while (true)
     {
         CH::Message msg = CH::recv(*receiver);
@@ -12,31 +12,30 @@ DWORD WINAPI render_thread(LPVOID lParam)
         {
         case CH::CreateWindowMessage:
         {
-            RM::create_window(renderManager, msg.content.create);
-            // RM::render(renderManager); // Must render each time we create a window or validation layers complain
+            VMNG::create_window(vulkanManager, msg.content.create);
         }
         break;
         case CH::UpdateWindowMessage:
         {
-            RM::resize(renderManager, msg.content.update);
+            VMNG::resize(vulkanManager, msg.content.update);
         }
         break;
         case CH::DestroyWindowMessage:
         {
-            RM::destroy_window(renderManager, msg.content.destroy);
+            VMNG::destroy_window(vulkanManager, msg.content.destroy);
         }
         break;
         }
-        if (!RM::is_empty(renderManager))
+        if (!VMNG::is_empty(vulkanManager))
         {
-            RM::render(renderManager);
+            VMNG::render(vulkanManager);
         }
         else
         {
             break;
         }
     }
-    RM::destroy(renderManager);
+    VMNG::destroy(vulkanManager);
     return 0;
 }
 
@@ -45,7 +44,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE prevInstance, LPWSTR cmdLine
     WM::WindowManager windowManager = WM::WindowManager{};
     CH::Channel channel = CH::Channel{};
     windowManager.transmitter = &channel;
-    u32 settingsIndex = WM::register_window_settings(windowManager, WM::CreateWindowInfo{.windowName = L"Elixir", .vsync = false});
+    u32 settingsIndex = WM::register_window_settings(windowManager, WM::CreateWindowInfo{.windowName = L"Elixir", .vsync = true});
     WM::create_window(windowManager, settingsIndex, instance);
     WM::create_window(windowManager, settingsIndex, instance);
     HANDLE renderThread = CreateThread(0, 0, render_thread, &channel, 0, 0);

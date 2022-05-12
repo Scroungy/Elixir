@@ -1,14 +1,10 @@
-#include "render_manager.h"
+#include "vulkan_window.h"
 
-namespace RM
+namespace VW
 {
-    void initialize(RenderManager &data)
+    void initialize(VkDevice device, VulkanWindows &data)
     {
-        // Initialize vulkan
-        create_instance(data);
-        select_graphics_card(data);
-        create_device_and_queues(data);
-        // Initialize present data of swapchain image count size
+        create_fences(device, data);
         PresentData &present = data.presentData;
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
@@ -40,192 +36,32 @@ namespace RM
         }
     }
 
-    void destroy(RenderManager &data)
+    void destroy(VkDevice device, VulkanWindows &data)
     {
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
-            vkDestroyFence(data.device, data.windowData.renderFences[i], nullptr);
-        }
-        vkDestroyDevice(data.device, nullptr);
-        vkDestroyInstance(data.instance, nullptr);
-    }
-
-    void create_instance(RenderManager &data)
-    {
-        volkInitialize();
-        const char *instanceExtensionNames[INSTANCE_EXTENSION_COUNT] = {"VK_KHR_surface", "VK_KHR_win32_surface", "VK_KHR_get_surface_capabilities2"};
-        VkApplicationInfo appInfo{
-            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .pNext = nullptr,
-            .pApplicationName = "Elixir",
-            .applicationVersion = 1,
-            .pEngineName = "ElixirEngine",
-            .engineVersion = 1,
-            .apiVersion = VK_API_VERSION_1_3};
-        VkInstanceCreateInfo instanceInfo{
-            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .pApplicationInfo = &appInfo,
-            .enabledLayerCount = 0,
-            .ppEnabledLayerNames = nullptr,
-            .enabledExtensionCount = INSTANCE_EXTENSION_COUNT,
-            .ppEnabledExtensionNames = instanceExtensionNames};
-        vkCreateInstance(&instanceInfo, nullptr, &data.instance);
-        if (data.instance == 0)
-        {
-            ExitProcess(1);
-        }
-        volkLoadInstance(data.instance);
-    }
-
-    void select_graphics_card(RenderManager &data)
-    {
-        u32 graphicsCardCount = 0;
-        VkPhysicalDevice graphicsCards[5]{};
-        vkEnumeratePhysicalDevices(data.instance, &graphicsCardCount, nullptr);
-        vkEnumeratePhysicalDevices(data.instance, &graphicsCardCount, graphicsCards);
-        const char *deviceExtensionNames[DEVICE_EXTENSION_COUNT] = {"VK_KHR_swapchain"};
-        if (graphicsCardCount == 0)
-        {
-            ExitProcess(1);
-        }
-        for (u32 k = 0; k < graphicsCardCount; k++)
-        {
-            u32 trueMemoryTypeCount = MEMORY_TYPE_FLAG_COUNT;
-            u32 metMemoryTypes = 0;
-            u32 extensionCount = 0;
-            u32 metExtensions = 0;
-            VkExtensionProperties graphicsCardExtensions[256]{};
-            vkGetPhysicalDeviceProperties2(graphicsCards[k], &data.deviceProp);
-            vkGetPhysicalDeviceMemoryProperties2(graphicsCards[k], &data.deviceMemProp);
-            vkGetPhysicalDeviceFeatures2(graphicsCards[k], &data.deviceFeatures);
-            vkEnumerateDeviceExtensionProperties(graphicsCards[k], nullptr, &extensionCount, nullptr);
-            vkEnumerateDeviceExtensionProperties(graphicsCards[k], nullptr, &extensionCount, graphicsCardExtensions);
-            if (data.deviceMemFeaturesAMD.deviceCoherentMemory != 0)
-            {
-                trueMemoryTypeCount += 1;
-                data.memPropFlags[2] = VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD;
-            }
-            for (u32 i = 0; i < DEVICE_EXTENSION_COUNT; i++)
-            {
-                for (u32 j = 0; j < extensionCount; j++)
-                {
-                    if (is_equal(deviceExtensionNames[i], graphicsCardExtensions[j].extensionName))
-                    {
-                        metExtensions += 1;
-                    }
-                }
-            }
-            for (u32 i = 0; i < trueMemoryTypeCount; i++)
-            {
-                for (u32 j = 0; j < data.deviceMemProp.memoryProperties.memoryTypeCount; j++)
-                {
-                    if (data.memPropFlags[i] & data.deviceMemProp.memoryProperties.memoryTypes[j].propertyFlags != 0)
-                    {
-                        metMemoryTypes += 1;
-                    }
-                }
-            }
-            if (metMemoryTypes < trueMemoryTypeCount || metExtensions < DEVICE_EXTENSION_COUNT || data.deviceProp.properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-            {
-                continue;
-            }
-            data.graphicsCard = graphicsCards[k];
-            break;
-        }
-        if (data.graphicsCard == 0)
-        {
-            ExitProcess(1);
+            vkDestroyFence(device, data.renderFences[i], nullptr);
         }
     }
 
-    void create_device_and_queues(RenderManager &data)
+    void acquire(VkDevice device, VulkanWindows &data)
     {
-        u32 queueFamilyCount = 0;
-        VkQueueFamilyProperties2 queueFamilyProperties[16]{};
-        f32 queuePriorities[QUEUE_FAMILY_INDEX_COUNT]{};
-        VkDeviceQueueCreateInfo queueInfos[QUEUE_FAMILY_INDEX_COUNT]{};
-        const char *deviceExtensionNames[DEVICE_EXTENSION_COUNT] = {"VK_KHR_swapchain"};
-        VkDeviceCreateInfo deviceInfo{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                                      .pNext = &data.deviceFeatures,
-                                      .flags = 0,
-                                      .queueCreateInfoCount = QUEUE_FAMILY_INDEX_COUNT,
-                                      .pQueueCreateInfos = queueInfos,
-                                      .enabledLayerCount = 0,
-                                      .ppEnabledLayerNames = nullptr,
-                                      .enabledExtensionCount = DEVICE_EXTENSION_COUNT,
-                                      .ppEnabledExtensionNames = deviceExtensionNames,
-                                      .pEnabledFeatures = nullptr};
-        for (u32 i = 0; i < 16; i++)
-        {
-            queueFamilyProperties[i].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
-        }
-        for (u32 i = 0; i < QUEUE_FAMILY_INDEX_COUNT; i++)
-        {
-            queueInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueInfos[i].pNext = nullptr;
-            queueInfos[i].flags = 0;
-            queueInfos[i].queueFamilyIndex = 0;
-            queueInfos[i].queueCount = 1;
-            queueInfos[i].pQueuePriorities = queuePriorities;
-        }
-        vkGetPhysicalDeviceQueueFamilyProperties2(data.graphicsCard, &queueFamilyCount, nullptr);
-        vkGetPhysicalDeviceQueueFamilyProperties2(data.graphicsCard, &queueFamilyCount, queueFamilyProperties);
-        for (u32 i = 0; i < queueFamilyCount; i++)
-        {
-            if (queueFamilyProperties[i].queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT != 0)
-            {
-                data.queueFamilyIndices[0] = i;
-                break;
-            }
-        }
-        for (u32 i = 0; i < QUEUE_FAMILY_INDEX_COUNT; i++)
-        {
-            if (data.queueFamilyIndices[i] == UINT_MAX)
-            {
-                ExitProcess(1);
-            }
-            queueInfos[i].queueFamilyIndex = data.queueFamilyIndices[i];
-        }
-        vkCreateDevice(data.graphicsCard, &deviceInfo, nullptr, &data.device);
-        if (data.device == 0)
-        {
-            ExitProcess(1);
-        }
-        volkLoadDevice(data.device);
-        VkDeviceQueueInfo2 queueInfo2{.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
-                                      .pNext = nullptr,
-                                      .flags = 0,
-                                      .queueFamilyIndex = data.queueFamilyIndices[0],
-                                      .queueIndex = 0};
-        vkGetDeviceQueue2(data.device, &queueInfo2, &data.graphicsQueue);
-        if (data.graphicsQueue == 0)
-        {
-            ExitProcess(1);
-        }
-        create_fences(data);
-    }
-
-    void acquire(RenderManager &data)
-    {
-        VkResult wait = vkWaitForFences(data.device, 1, &data.windowData.renderFences[data.presentData.currentFrame], VK_TRUE, 0);
+        VkResult wait = vkWaitForFences(device, 1, &data.renderFences[data.presentData.currentFrame], VK_TRUE, 0);
         if (wait != VK_SUCCESS)
         {
             return;
         }
-        // NOTE each window should have its own current frame instead, then you can handle acquire calls to the same index
         u32 currentFrame = data.presentData.currentFrame;
-        for (u32 i = 0; i < data.windowData.emptyWindowIndex; i++)
+        for (u32 i = 0; i < data.emptyWindowIndex; i++)
         {
-            RenderData &currentWindow = data.windowData.windows[i];
-            VkResult acquireRes = vkAcquireNextImageKHR(data.device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentWindow.currentFrame], 0, &currentWindow.swapchainImageIndices[currentWindow.currentFrame]);
+            WindowData &currentWindow = data.windows[i];
+            VkResult acquireRes = vkAcquireNextImageKHR(device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentWindow.currentFrame], 0, &currentWindow.swapchainImageIndices[currentWindow.currentFrame]);
             if (acquireRes == VK_SUBOPTIMAL_KHR || acquireRes == VK_ERROR_OUT_OF_DATE_KHR)
             {
                 RECT r{};
                 GetClientRect(currentWindow.windowHandle, &r);
-                resize(data, {.width = (u32)(r.right - r.left), .height = (u32)(r.bottom - r.top), .windowIndex = i});
-                acquireRes = vkAcquireNextImageKHR(data.device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentWindow.currentFrame], 0, &currentWindow.swapchainImageIndices[currentWindow.currentFrame]);
+                resize(device, data, {.width = (u32)(r.right - r.left), .height = (u32)(r.bottom - r.top), .windowIndex = i});
+                acquireRes = vkAcquireNextImageKHR(device, currentWindow.swapchain, 0, currentWindow.acquireNextImageSemaphores[currentWindow.currentFrame], 0, &currentWindow.swapchainImageIndices[currentWindow.currentFrame]);
             }
             if (acquireRes == VK_SUCCESS || acquireRes == VK_SUBOPTIMAL_KHR)
             {
@@ -243,16 +79,16 @@ namespace RM
         data.presentData.submitBatches[currentFrame].signalSemaphoreCount = validWindowCount;
         data.presentData.presentBatches[currentFrame].waitSemaphoreCount = validWindowCount;
         data.presentData.presentBatches[currentFrame].swapchainCount = validWindowCount;
-        vkResetFences(data.device, 1, &data.windowData.renderFences[currentFrame]);
+        vkResetFences(device, 1, &data.renderFences[currentFrame]);
     }
 
-    void record(RenderManager &data)
+    void record(VulkanWindows &data)
     {
         for (u32 i = 0; i < data.presentData.validWindowCount; i++)
         {
             u32 currentWindowIndex = data.presentData.validWindows[i];
             u32 currentFrame = data.presentData.currentFrame;
-            RenderData &currentWindow = data.windowData.windows[currentWindowIndex];
+            WindowData &currentWindow = data.windows[currentWindowIndex];
             PresentData &present = data.presentData;
             present.viewport[currentWindowIndex].width = (f32)currentWindow.area.extent.width;
             present.viewport[currentWindowIndex].height = (f32)currentWindow.area.extent.height;
@@ -277,11 +113,11 @@ namespace RM
         }
     }
 
-    void map_to_soa(RenderManager &data)
+    void map_to_soa(VulkanWindows &data)
     {
         for (u32 i = 0; i < data.presentData.validWindowCount; i++)
         {
-            RenderData &currentWindow = data.windowData.windows[data.presentData.validWindows[i]];
+            WindowData &currentWindow = data.windows[data.presentData.validWindows[i]];
             u32 currentFrame = data.presentData.currentFrame;
             PresentDataSOA &soa = data.presentData.soa[currentFrame];
             soa.swapchainsDyn[i] = currentWindow.swapchain;
@@ -292,81 +128,66 @@ namespace RM
         }
     }
 
-    void render(RenderManager &data)
+    void render(VkDevice device, VulkanWindows &data, VkQueue graphicsQueue)
     {
         data.presentData.validWindowCount = 0;
-        acquire(data);
+        acquire(device, data);
         if (data.presentData.validWindowCount == 0)
         {
-            // data.presentData.currentFrame = (data.presentData.currentFrame + 1) % SWAPCHAIN_IMAGE_COUNT;
             return;
         }
         record(data);
         map_to_soa(data);
-        vkQueueSubmit(data.graphicsQueue, 1, &data.presentData.submitBatches[data.presentData.currentFrame], data.windowData.renderFences[data.presentData.currentFrame]);
-        VkResult presentRes = vkQueuePresentKHR(data.graphicsQueue, &data.presentData.presentBatches[data.presentData.currentFrame]);
+        vkQueueSubmit(graphicsQueue, 1, &data.presentData.submitBatches[data.presentData.currentFrame], data.renderFences[data.presentData.currentFrame]);
+        VkResult presentRes = vkQueuePresentKHR(graphicsQueue, &data.presentData.presentBatches[data.presentData.currentFrame]);
         // if (presentRes == VK_SUBOPTIMAL_KHR || presentRes == VK_ERROR_OUT_OF_DATE_KHR)
         // {
-        //     for (u32 i = 0; i < data.windowData.emptyWindowIndex; i++)
+        //     for (u32 i = 0; i < data.emptyWindowIndex; i++)
         //     {
         //         RECT r{};
-        //         GetClientRect(data.windowData.windows[i].windowHandle, &r);
+        //         GetClientRect(data.windows[i].windowHandle, &r);
         //         resize(data, {.width = (u32)(r.right - r.left), .height = (u32)(r.bottom - r.top), .windowIndex = i});
         //     }
         // }
         data.presentData.currentFrame = (data.presentData.currentFrame + 1) % SWAPCHAIN_IMAGE_COUNT;
-        for (u32 i = 0; i < data.windowData.emptyWindowIndex; i++)
+        for (u32 i = 0; i < data.emptyWindowIndex; i++)
         {
-            data.windowData.windows[i].currentFrame = (data.windowData.windows[i].currentFrame + 1) % SWAPCHAIN_IMAGE_COUNT;
+            data.windows[i].currentFrame = (data.windows[i].currentFrame + 1) % SWAPCHAIN_IMAGE_COUNT;
         }
         data.presentData.currentRenderTick += 1;
     }
 
-    bool is_empty(RenderManager &data)
+    bool is_empty(VulkanWindows &data)
     {
-        if (data.windowData.emptyWindowIndex == 0)
+        if (data.emptyWindowIndex == 0)
         {
             return true;
         }
         return false;
     }
 
-    bool is_equal(const char *first, const char *second)
+    void create_window(VB::VulkanBase &base, VulkanWindows &data, CH::ConstructedWindowInfo message)
     {
-        while (*first)
-        {
-            if (*first != *second)
-            {
-                return false;
-            }
-            first++;
-            second++;
-        }
-        return true;
-    }
-
-    void create_window(RenderManager &data, CH::ConstructedWindowInfo message)
-    {
-        RenderData &currentWindow = data.windowData.windows[message.windowIndex];
+        WindowData &currentWindow = data.windows[message.windowIndex];
         currentWindow.vsync = message.vsync;
         currentWindow.area.extent.width = message.width;
         currentWindow.area.extent.height = message.height;
         currentWindow.windowHandle = message.hwnd;
-        create_surface(data, currentWindow, message.hinstance, message.hwnd);
-        select_surface_format(data, currentWindow);
-        select_present_mode(data, currentWindow);
-        create_swapchain(data, currentWindow);
-        get_swapchain_images(data, currentWindow);
-        create_swapchain_image_views(data, currentWindow);
-        create_graphics_pipeline_layout(data, currentWindow);
-        create_graphics_pipeline(data, currentWindow);
-        create_command_pools(data, currentWindow);
-        create_command_buffers(data, currentWindow);
-        create_semaphores(data, currentWindow);
-        data.windowData.emptyWindowIndex += 1;
+        create_surface(base, currentWindow, message.hinstance, message.hwnd);
+        select_surface_format(base.graphicsCard, currentWindow);
+        select_present_mode(base.graphicsCard, currentWindow);
+        create_swapchain(base.device, currentWindow);
+        get_swapchain_images(base.device, currentWindow);
+        create_swapchain_image_views(base.device, currentWindow);
+        create_graphics_pipeline_layout(base.device, currentWindow);
+        create_graphics_pipeline(base.device, currentWindow);
+        create_command_pools(base.device, currentWindow, base.queueFamilyIndices[0]);
+        create_command_buffers(base.device, currentWindow);
+        create_semaphores(base.device, currentWindow);
+        data.emptyWindowIndex += 1;
     }
 
-    void create_surface(RenderManager &data, RenderData &window, HINSTANCE instance, HWND hwnd)
+    void create_surface(VB::VulkanBase &data, WindowData &window, HINSTANCE instance, HWND hwnd)
     {
         VkWin32SurfaceCreateInfoKHR surfaceInfo{.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
                                                 .pNext = nullptr,
@@ -386,7 +207,7 @@ namespace RM
         vkGetPhysicalDeviceSurfaceCapabilities2KHR(data.graphicsCard, &surfaceInfo2, &data.deviceCapabilities);
     }
 
-    void select_surface_format(RenderManager &data, RenderData &window)
+    void select_surface_format(VkPhysicalDevice graphicsCard, WindowData &window)
     {
         u32 formatCount = 0;
         VkSurfaceFormat2KHR currentFormats[256]{};
@@ -397,8 +218,8 @@ namespace RM
         {
             currentFormats[i].sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR;
         }
-        vkGetPhysicalDeviceSurfaceFormats2KHR(data.graphicsCard, &surfaceInfo, &formatCount, nullptr);
-        vkGetPhysicalDeviceSurfaceFormats2KHR(data.graphicsCard, &surfaceInfo, &formatCount, currentFormats);
+        vkGetPhysicalDeviceSurfaceFormats2KHR(graphicsCard, &surfaceInfo, &formatCount, nullptr);
+        vkGetPhysicalDeviceSurfaceFormats2KHR(graphicsCard, &surfaceInfo, &formatCount, currentFormats);
         u32 formatIndex = UINT_MAX;
         for (u32 i = 0; i < formatCount; i++)
         {
@@ -415,12 +236,12 @@ namespace RM
         window.surfaceFormat = currentFormats[formatIndex].surfaceFormat;
     }
 
-    void select_present_mode(RenderManager &data, RenderData &window)
+    void select_present_mode(VkPhysicalDevice graphicsCard, WindowData &window)
     {
         u32 presentModeCount = 0;
         VkPresentModeKHR currentPresentModes[256]{};
-        vkGetPhysicalDeviceSurfacePresentModesKHR(data.graphicsCard, window.surface, &presentModeCount, nullptr);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(data.graphicsCard, window.surface, &presentModeCount, currentPresentModes);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(graphicsCard, window.surface, &presentModeCount, nullptr);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(graphicsCard, window.surface, &presentModeCount, currentPresentModes);
         u32 presentModeIndex = UINT_MAX;
         for (u32 i = 0; i < presentModeCount; i++)
         {
@@ -448,7 +269,7 @@ namespace RM
         window.presentMode = currentPresentModes[presentModeIndex];
     }
 
-    void create_swapchain(RenderManager &data, RenderData &window)
+    void create_swapchain(VkDevice device, WindowData &window)
     {
         VkSwapchainCreateInfoKHR swapchainInfo{.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
                                                .pNext = nullptr,
@@ -468,21 +289,21 @@ namespace RM
                                                .presentMode = window.presentMode,
                                                .clipped = VK_TRUE,
                                                .oldSwapchain = 0};
-        vkCreateSwapchainKHR(data.device, &swapchainInfo, nullptr, &window.swapchain);
+        vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &window.swapchain);
         if (window.swapchain == 0)
         {
             ExitProcess(1);
         }
     }
 
-    void get_swapchain_images(RenderManager &data, RenderData &window)
+    void get_swapchain_images(VkDevice device, WindowData &window)
     {
         u32 swapchainImageCount = 0;
-        vkGetSwapchainImagesKHR(data.device, window.swapchain, &swapchainImageCount, nullptr);
-        vkGetSwapchainImagesKHR(data.device, window.swapchain, &swapchainImageCount, window.swapchainImages);
+        vkGetSwapchainImagesKHR(device, window.swapchain, &swapchainImageCount, nullptr);
+        vkGetSwapchainImagesKHR(device, window.swapchain, &swapchainImageCount, window.swapchainImages);
     }
 
-    void create_swapchain_image_views(RenderManager &data, RenderData &window)
+    void create_swapchain_image_views(VkDevice device, WindowData &window)
     {
         VkImageViewUsageCreateInfo imageViewUsage{.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
                                                   .pNext = nullptr,
@@ -502,11 +323,11 @@ namespace RM
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
             imageViewInfo.image = window.swapchainImages[i];
-            vkCreateImageView(data.device, &imageViewInfo, nullptr, &window.swapchainImageViews[i]);
+            vkCreateImageView(device, &imageViewInfo, nullptr, &window.swapchainImageViews[i]);
         }
     }
 
-    void create_graphics_pipeline_layout(RenderManager &data, RenderData &window)
+    void create_graphics_pipeline_layout(VkDevice device, WindowData &window)
     {
         VkPipelineLayoutCreateInfo layoutInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                                               .pNext = nullptr,
@@ -515,19 +336,19 @@ namespace RM
                                               .pSetLayouts = nullptr,
                                               .pushConstantRangeCount = 0,
                                               .pPushConstantRanges = nullptr};
-        vkCreatePipelineLayout(data.device, &layoutInfo, nullptr, &window.graphicsPipelineLayout);
+        vkCreatePipelineLayout(device, &layoutInfo, nullptr, &window.graphicsPipelineLayout);
         if (window.graphicsPipelineLayout == 0)
         {
             ExitProcess(1);
         }
     }
 
-    void create_graphics_pipeline(RenderManager &data, RenderData &window)
+    void create_graphics_pipeline(VkDevice device, WindowData &window)
     {
         VkShaderModule vertexShaderModule{};
         VkShaderModule fragmentShaderModule{};
-        load_shader_module(data, L"vert.spv", vertexShaderModule);
-        load_shader_module(data, L"frag.spv", fragmentShaderModule);
+        load_shader_module(device, L"vert.spv", vertexShaderModule);
+        load_shader_module(device, L"frag.spv", fragmentShaderModule);
 
         VkPipelineRenderingCreateInfo renderInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
                                                  .colorAttachmentCount = 1,
@@ -629,28 +450,28 @@ namespace RM
                                                           .subpass = 0,
                                                           .basePipelineHandle = 0,
                                                           .basePipelineIndex = 0};
-        vkCreateGraphicsPipelines(data.device, 0, 1, &graphicsPipelineInfo, nullptr, &window.graphicsPipeline);
-        vkDestroyShaderModule(data.device, vertexShaderModule, nullptr);
-        vkDestroyShaderModule(data.device, fragmentShaderModule, nullptr);
+        vkCreateGraphicsPipelines(device, 0, 1, &graphicsPipelineInfo, nullptr, &window.graphicsPipeline);
+        vkDestroyShaderModule(device, vertexShaderModule, nullptr);
+        vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
         if (window.graphicsPipeline == 0)
         {
             ExitProcess(1);
         }
     }
 
-    void create_command_pools(RenderManager &data, RenderData &window)
+    void create_command_pools(VkDevice device, WindowData &window, u32 queueFamilyIndex)
     {
         VkCommandPoolCreateInfo commandPoolInfo{.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
                                                 .pNext = nullptr,
                                                 .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                                                .queueFamilyIndex = data.queueFamilyIndices[0]};
+                                                .queueFamilyIndex = queueFamilyIndex};
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
-            vkCreateCommandPool(data.device, &commandPoolInfo, nullptr, &window.commandPools[i]);
+            vkCreateCommandPool(device, &commandPoolInfo, nullptr, &window.commandPools[i]);
         }
     }
 
-    void create_command_buffers(RenderManager &data, RenderData &window)
+    void create_command_buffers(VkDevice device, WindowData &window)
     {
         VkCommandBufferAllocateInfo commandBufferInfo{.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                                                       .pNext = nullptr,
@@ -660,34 +481,34 @@ namespace RM
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
             commandBufferInfo.commandPool = window.commandPools[i];
-            vkAllocateCommandBuffers(data.device, &commandBufferInfo, &window.commandBuffers[i]);
+            vkAllocateCommandBuffers(device, &commandBufferInfo, &window.commandBuffers[i]);
         }
     }
 
-    void create_semaphores(RenderManager &data, RenderData &window)
+    void create_semaphores(VkDevice device, WindowData &window)
     {
         VkSemaphoreCreateInfo semaphoreInfo{.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
                                             .pNext = nullptr,
                                             .flags = 0};
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
-            vkCreateSemaphore(data.device, &semaphoreInfo, nullptr, &window.acquireNextImageSemaphores[i]);
-            vkCreateSemaphore(data.device, &semaphoreInfo, nullptr, &window.renderSemaphores[i]);
+            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &window.acquireNextImageSemaphores[i]);
+            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &window.renderSemaphores[i]);
         }
     }
 
-    void create_fences(RenderManager &data)
+    void create_fences(VkDevice device, VulkanWindows &data)
     {
         VkFenceCreateInfo fenceInfo{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                     .pNext = nullptr,
                                     .flags = VK_FENCE_CREATE_SIGNALED_BIT};
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
-            vkCreateFence(data.device, &fenceInfo, nullptr, &data.windowData.renderFences[i]);
+            vkCreateFence(device, &fenceInfo, nullptr, &data.renderFences[i]);
         }
     }
 
-    void load_shader_module(RenderManager &data, PCWSTR fileName, VkShaderModule &shaderModule)
+    void load_shader_module(VkDevice device, PCWSTR fileName, VkShaderModule &shaderModule)
     {
         HANDLE file = CreateFileW(fileName, FILE_GENERIC_READ, 1, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
         if (file == INVALID_HANDLE_VALUE)
@@ -707,56 +528,56 @@ namespace RM
                                             .flags = 0,
                                             .codeSize = fileSize,
                                             .pCode = outputBuffer};
-        vkCreateShaderModule(data.device, &shaderInfo, nullptr, &shaderModule);
+        vkCreateShaderModule(device, &shaderInfo, nullptr, &shaderModule);
         if (shaderModule == 0)
         {
             ExitProcess(1);
         }
     }
 
-    void destroy_all_windows(RenderManager &data)
+    void destroy_all_windows(VkInstance instance, VkDevice device, VulkanWindows &data)
     {
-        for (u32 i = 0; i < data.windowData.emptyWindowIndex; i++)
+        for (u32 i = 0; i < data.emptyWindowIndex; i++)
         {
-            RenderData &currentWindow = data.windowData.windows[i];
+            WindowData &currentWindow = data.windows[i];
             for (u32 k = 0; k < SWAPCHAIN_IMAGE_COUNT; k++)
             {
-                vkDestroySemaphore(data.device, currentWindow.acquireNextImageSemaphores[k], nullptr);
-                vkDestroySemaphore(data.device, currentWindow.renderSemaphores[k], nullptr);
+                vkDestroySemaphore(device, currentWindow.acquireNextImageSemaphores[k], nullptr);
+                vkDestroySemaphore(device, currentWindow.renderSemaphores[k], nullptr);
             }
             for (u32 k = 0; k < SWAPCHAIN_IMAGE_COUNT; k++)
             {
-                vkDestroyCommandPool(data.device, currentWindow.commandPools[k], nullptr);
+                vkDestroyCommandPool(device, currentWindow.commandPools[k], nullptr);
             }
-            flush_deletion_queue(data, currentWindow);
+            flush_deletion_queue(device, currentWindow);
             for (u32 k = 0; k < SWAPCHAIN_IMAGE_COUNT; k++)
             {
-                vkDestroyImageView(data.device, currentWindow.swapchainImageViews[k], nullptr);
-                vkDestroyImageView(data.device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchainImageViews[k], nullptr);
+                vkDestroyImageView(device, currentWindow.swapchainImageViews[k], nullptr);
+                vkDestroyImageView(device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchainImageViews[k], nullptr);
             }
-            vkDestroySwapchainKHR(data.device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchain, nullptr);
-            vkDestroySwapchainKHR(data.device, currentWindow.swapchain, nullptr);
-            vkDestroyPipeline(data.device, currentWindow.graphicsPipeline, nullptr);
-            vkDestroyPipelineLayout(data.device, currentWindow.graphicsPipelineLayout, nullptr);
-            vkDestroySurfaceKHR(data.instance, currentWindow.surface, nullptr);
+            vkDestroySwapchainKHR(device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchain, nullptr);
+            vkDestroySwapchainKHR(device, currentWindow.swapchain, nullptr);
+            vkDestroyPipeline(device, currentWindow.graphicsPipeline, nullptr);
+            vkDestroyPipelineLayout(device, currentWindow.graphicsPipelineLayout, nullptr);
+            vkDestroySurfaceKHR(instance, currentWindow.surface, nullptr);
         }
-        data.windowData.emptyWindowIndex = 0;
+        data.emptyWindowIndex = 0;
     }
 
-    void destroy_window(RenderManager &data, CH::DestroyedWindowInfo message)
+    void destroy_window(VkInstance instance, VkDevice device, VulkanWindows &data, CH::DestroyedWindowInfo message)
     {
-        vkDeviceWaitIdle(data.device);
+        vkDeviceWaitIdle(device);
         if (message.windowIndex == UINT_MAX)
         {
-            destroy_all_windows(data);
+            destroy_all_windows(instance, device, data);
         }
         else
         {
-            RenderData &currentWindow = data.windowData.windows[message.windowIndex];
+            WindowData &currentWindow = data.windows[message.windowIndex];
             u32 lastFrame = (data.presentData.currentFrame + SWAPCHAIN_IMAGE_COUNT - 1) % SWAPCHAIN_IMAGE_COUNT;
             PresentDataSOA &present = data.presentData.soa[lastFrame];
             u32 validWindowIndex = UINT_MAX;
-            for (u32 i = 0; i < data.windowData.emptyWindowIndex; i++)
+            for (u32 i = 0; i < data.emptyWindowIndex; i++)
             {
                 if (message.windowIndex == data.presentData.validWindows[i])
                 {
@@ -801,35 +622,35 @@ namespace RM
             }
             for (u32 k = 0; k < SWAPCHAIN_IMAGE_COUNT; k++)
             {
-                vkDestroySemaphore(data.device, currentWindow.acquireNextImageSemaphores[k], nullptr);
-                vkDestroySemaphore(data.device, currentWindow.renderSemaphores[k], nullptr);
+                vkDestroySemaphore(device, currentWindow.acquireNextImageSemaphores[k], nullptr);
+                vkDestroySemaphore(device, currentWindow.renderSemaphores[k], nullptr);
             }
             for (u32 k = 0; k < SWAPCHAIN_IMAGE_COUNT; k++)
             {
-                vkDestroyCommandPool(data.device, currentWindow.commandPools[k], nullptr);
+                vkDestroyCommandPool(device, currentWindow.commandPools[k], nullptr);
             }
-            flush_deletion_queue(data, currentWindow);
+            flush_deletion_queue(device, currentWindow);
             for (u32 k = 0; k < SWAPCHAIN_IMAGE_COUNT; k++)
             {
-                vkDestroyImageView(data.device, currentWindow.swapchainImageViews[k], nullptr);
-                vkDestroyImageView(data.device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchainImageViews[k], nullptr);
+                vkDestroyImageView(device, currentWindow.swapchainImageViews[k], nullptr);
+                vkDestroyImageView(device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchainImageViews[k], nullptr);
             }
-            vkDestroySwapchainKHR(data.device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchain, nullptr);
-            vkDestroySwapchainKHR(data.device, currentWindow.swapchain, nullptr);
-            vkDestroyPipeline(data.device, currentWindow.graphicsPipeline, nullptr);
-            vkDestroyPipelineLayout(data.device, currentWindow.graphicsPipelineLayout, nullptr);
-            vkDestroySurfaceKHR(data.instance, currentWindow.surface, nullptr);
-            if (message.windowIndex != data.windowData.emptyWindowIndex)
+            vkDestroySwapchainKHR(device, currentWindow.swapchainDeletionQueue[currentWindow.emptyDeletionQueueIndex].swapchain, nullptr);
+            vkDestroySwapchainKHR(device, currentWindow.swapchain, nullptr);
+            vkDestroyPipeline(device, currentWindow.graphicsPipeline, nullptr);
+            vkDestroyPipelineLayout(device, currentWindow.graphicsPipelineLayout, nullptr);
+            vkDestroySurfaceKHR(instance, currentWindow.surface, nullptr);
+            if (message.windowIndex != data.emptyWindowIndex)
             {
-                data.windowData.windows[message.windowIndex] = data.windowData.windows[data.windowData.emptyWindowIndex - 1];
+                data.windows[message.windowIndex] = data.windows[data.emptyWindowIndex - 1];
             }
-            data.windowData.emptyWindowIndex -= 1;
+            data.emptyWindowIndex -= 1;
         }
     }
 
-    void resize(RenderManager &data, CH::UpdatedWindowInfo message)
+    void resize(VkDevice device, VulkanWindows &data, CH::UpdatedWindowInfo message)
     {
-        RenderData &updatedWindow = data.windowData.windows[message.windowIndex];
+        WindowData &updatedWindow = data.windows[message.windowIndex];
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
             updatedWindow.swapchainDeletionQueue[updatedWindow.emptyDeletionQueueIndex].swapchainImageViews[i] = updatedWindow.swapchainImageViews[i];
@@ -855,10 +676,10 @@ namespace RM
                                                .presentMode = updatedWindow.presentMode,
                                                .clipped = VK_TRUE,
                                                .oldSwapchain = updatedWindow.swapchainDeletionQueue[updatedWindow.emptyDeletionQueueIndex].swapchain};
-        vkCreateSwapchainKHR(data.device, &swapchainInfo, nullptr, &updatedWindow.swapchain);
+        vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &updatedWindow.swapchain);
         u32 swapchainImageCount = 0;
-        vkGetSwapchainImagesKHR(data.device, updatedWindow.swapchain, &swapchainImageCount, nullptr);
-        vkGetSwapchainImagesKHR(data.device, updatedWindow.swapchain, &swapchainImageCount, updatedWindow.swapchainImages);
+        vkGetSwapchainImagesKHR(device, updatedWindow.swapchain, &swapchainImageCount, nullptr);
+        vkGetSwapchainImagesKHR(device, updatedWindow.swapchain, &swapchainImageCount, updatedWindow.swapchainImages);
         VkImageViewUsageCreateInfo imageViewUsage{.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
                                                   .pNext = nullptr,
                                                   .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT};
@@ -877,16 +698,16 @@ namespace RM
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT; i++)
         {
             imageViewInfo.image = updatedWindow.swapchainImages[i];
-            vkCreateImageView(data.device, &imageViewInfo, nullptr, &updatedWindow.swapchainImageViews[i]);
+            vkCreateImageView(device, &imageViewInfo, nullptr, &updatedWindow.swapchainImageViews[i]);
         }
-        flush_deletion_queue(data, updatedWindow);
+        flush_deletion_queue(device, updatedWindow);
         updatedWindow.emptyDeletionQueueIndex = (updatedWindow.emptyDeletionQueueIndex + 1) % (SWAPCHAIN_IMAGE_COUNT * 2);
         updatedWindow.currentFrame = 0;
     }
 
-    void flush_deletion_queue(RenderManager &data, RenderData &window)
+    void flush_deletion_queue(VkDevice device, WindowData &window)
     {
-        vkDeviceWaitIdle(data.device);
+        vkDeviceWaitIdle(device);
         for (u32 i = 0; i < SWAPCHAIN_IMAGE_COUNT * 2; i++)
         {
             if (i == window.emptyDeletionQueueIndex)
@@ -895,10 +716,10 @@ namespace RM
             }
             for (u32 k = 0; k < SWAPCHAIN_IMAGE_COUNT; k++)
             {
-                vkDestroyImageView(data.device, window.swapchainDeletionQueue[i].swapchainImageViews[k], nullptr);
+                vkDestroyImageView(device, window.swapchainDeletionQueue[i].swapchainImageViews[k], nullptr);
                 window.swapchainDeletionQueue[i].swapchainImageViews[k] = 0;
             }
-            vkDestroySwapchainKHR(data.device, window.swapchainDeletionQueue[i].swapchain, nullptr);
+            vkDestroySwapchainKHR(device, window.swapchainDeletionQueue[i].swapchain, nullptr);
             window.swapchainDeletionQueue[i].swapchain = 0;
         }
     }

@@ -3,7 +3,6 @@
 /Source/vc140.pdb
 /Source/ElixirBare.obj
 /Source/channel.obj
-/Source/render_manager.obj
 /CCRT/vc140.pdb
 /CCRT/customCRT_float.obj
 /CCRT/customCRT_heap.obj
@@ -15,3 +14,7 @@ CCRT/Build/Release/ccrt.lib
 Libs/ccrt.lib
 Libs/ccrtd.lib
 CCRT/Build/Debug/ccrtd.lib
+/Source/vulkan_base.obj
+/Source/vulkan_manager.obj
+/Source/vulkan_memory.obj
+/Source/vulkan_window.obj
