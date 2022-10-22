@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/Includes",
+                "C:/VulkanSDK/1.3.216.0/Include",
+                "${workspaceFolder}/../CSTD/Includes",
+                "C:/Program Files (x86)/Windows Kits/10/Include/10.0.19041.0",
+                "${default}"
+            ],
+            "defines": [
+                "UNICODE",
+                "_UNICODE",
+                "VK_USE_PLATFORM_WIN32_KHR",
+                "VK_NO_STDINT_H",
+                "VK_NO_STDDEF_H",
+                "__AVX2__"
+            ],
+            "windowsSdkVersion": "10.0.19041.0",
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.31.31103/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c17",
+            "intelliSenseMode": "windows-msvc-x64"
+        }
+    ],
+    "version": 4
+}

@@ -1,0 +1,16 @@
+{
+    "C_Cpp.errorSquiggles": "Disabled",
+    "files.associations": {
+        "*.S": "asm-collection",
+        "memory": "cpp",
+        "xmemory": "cpp",
+        "iterator": "cpp",
+        "xhash": "cpp",
+        "xtree": "cpp",
+        "xutility": "cpp",
+        "xiosbase": "cpp",
+        "initializer_list": "cpp",
+        "cstddef": "cpp",
+        "xtr1common": "cpp"
+    }
+}
